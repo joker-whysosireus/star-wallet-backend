@@ -1,0 +1,26 @@
+[build]
+  functions = "netlify/functions"
+
+[functions.auth]
+  origin = "https://star-wallet.netlify.app"
+
+[functions.get-addresses]
+  origin = "https://star-wallet.netlify.app"
+
+[functions.get-balance]
+  origin = "https://star-wallet.netlify.app"
+
+[functions.get-full-wallet]
+  origin = "https://star-wallet.netlify.app"
+
+[functions.get-seed]
+  origin = "https://star-wallet.netlify.app"
+
+[functions.save-addresses]
+  origin = "https://star-wallet.netlify.app"
+
+[functions.save-balance]
+  origin = "https://star-wallet.netlify.app"
+
+[functions.save-seed]
+  origin = "https://star-wallet.netlify.app"
