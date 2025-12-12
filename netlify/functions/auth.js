@@ -1,5 +1,5 @@
 // netlify/functions/auth.js
-import CryptoJS from 'crypto-js';
+
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,7 +11,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 exports.handler = async (event, context) => {
-    console.log("auth.js: event.body:", event.body);
+    console.log("auth.js: Function started");
 
     const headers = {
         "Access-Control-Allow-Origin": CORS_ORIGIN,
@@ -31,7 +31,7 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        console.log("auth.js: Function started");
+        console.log("auth.js: event.body:", event.body);
 
         let requestBody;
         if (event.body) {
@@ -125,19 +125,26 @@ exports.handler = async (event, context) => {
             };
         }
 
+        // Верификация хэша с использованием Node.js crypto
         const params = new URLSearchParams(initData);
-        params.sort();
+        const entries = Array.from(params.entries());
+        entries.sort((a, b) => a[0].localeCompare(b[0]));
 
         let dataCheckString = "";
-        for (const [key, value] of params.entries()) {
+        for (const [key, value] of entries) {
             if (key !== "hash") {
                 dataCheckString += `${key}=${value}\n`;
             }
         }
         dataCheckString = dataCheckString.trim();
 
-        const secretKey = CryptoJS.HmacSHA256(BOT_TOKEN, "WebAppData").toString(CryptoJS.enc.Hex);
-        const calculatedHash = CryptoJS.HmacSHA256(dataCheckString, CryptoJS.enc.Hex.parse(secretKey)).toString(CryptoJS.enc.Hex);
+        // Создаем secretKey как HMAC SHA256 от BOT_TOKEN с ключом "WebAppData"
+        const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+        
+        // Вычисляем HMAC SHA256 от dataCheckString
+        const calculatedHash = crypto.createHmac('sha256', secretKey)
+            .update(dataCheckString)
+            .digest('hex');
 
         if (calculatedHash !== hash) {
             console.warn("auth.js: Hash mismatch - Calculated hash:", calculatedHash, "Provided hash:", hash);
@@ -160,6 +167,7 @@ exports.handler = async (event, context) => {
             };
         }
 
+        // Проверяем существование пользователя в таблице crypto_wallets
         let userDB;
         try {
             console.log("auth.js: Checking user in crypto_wallets table, telegram_user_id:", userId);
@@ -171,6 +179,7 @@ exports.handler = async (event, context) => {
                 .single();
 
             if (selectError && selectError.code === 'PGRST116') {
+                // Пользователь не найден, создаем нового
                 console.log("auth.js: User not found, creating new user in crypto_wallets");
                 
                 const newUser = {
@@ -214,6 +223,7 @@ exports.handler = async (event, context) => {
                 console.log("auth.js: User found in crypto_wallets table:", existingUser);
                 userDB = existingUser;
                 
+                // Обновляем username если изменился
                 if (userDB.username !== username) {
                     const { data: updatedUser, error: updateError } = await supabase
                         .from('crypto_wallets')
