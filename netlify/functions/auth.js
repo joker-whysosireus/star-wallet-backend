@@ -1,5 +1,3 @@
-// netlify/functions/auth.js
-
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
@@ -9,6 +7,9 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+// Импортируем crypto для Node.js среды
+const crypto = require('crypto');
 
 exports.handler = async (event, context) => {
     console.log("auth.js: Function started");
@@ -145,6 +146,8 @@ exports.handler = async (event, context) => {
         const calculatedHash = crypto.createHmac('sha256', secretKey)
             .update(dataCheckString)
             .digest('hex');
+
+        console.log("auth.js: Calculated hash:", calculatedHash, "Provided hash:", hash);
 
         if (calculatedHash !== hash) {
             console.warn("auth.js: Hash mismatch - Calculated hash:", calculatedHash, "Provided hash:", hash);
