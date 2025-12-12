@@ -8,7 +8,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
-// Используем service_role для полного доступа к таблицам
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 exports.handler = async (event, context) => {
@@ -59,7 +58,6 @@ exports.handler = async (event, context) => {
         const initData = requestBody.initData;
         let referralCode = null;
 
-        // Extract start_param from initData
         const urlParams = new URLSearchParams(initData);
         const startParam = urlParams.get('start_param');
 
@@ -127,7 +125,6 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Верификация хэша
         const params = new URLSearchParams(initData);
         params.sort();
 
@@ -163,7 +160,6 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Проверяем существование пользователя в таблице crypto_wallets
         let userDB;
         try {
             console.log("auth.js: Checking user in crypto_wallets table, telegram_user_id:", userId);
@@ -175,7 +171,6 @@ exports.handler = async (event, context) => {
                 .single();
 
             if (selectError && selectError.code === 'PGRST116') {
-                // Пользователь не найден, создаем нового
                 console.log("auth.js: User not found, creating new user in crypto_wallets");
                 
                 const newUser = {
@@ -219,7 +214,6 @@ exports.handler = async (event, context) => {
                 console.log("auth.js: User found in crypto_wallets table:", existingUser);
                 userDB = existingUser;
                 
-                // Обновляем username если изменился
                 if (userDB.username !== username) {
                     const { data: updatedUser, error: updateError } = await supabase
                         .from('crypto_wallets')
