@@ -1,16 +1,14 @@
-// netlify/functions/auth.js
-
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-exports.handler = async (event, context) => {
+export const handler = async (event, context) => {
     console.log("auth.js: Function started");
 
     const headers = {
@@ -116,7 +114,7 @@ exports.handler = async (event, context) => {
 
         console.log("auth.js: Extracted user data - userId:", userId, "firstName:", firstName, "lastName:", lastName, "username:", username, "avatarUrl:", avatarUrl);
 
-        if (!BOT_TOKEN || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+        if (!BOT_TOKEN || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
             console.error("auth.js: Environment variables not defined");
             return {
                 statusCode: 500,
