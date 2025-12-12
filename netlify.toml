@@ -4,15 +4,11 @@
 [functions.auth]
   origin = "https://star-wallet.netlify.app"
 
-[functions.getWallets]
+[functions.save-addresses]
   origin = "https://star-wallet.netlify.app"
 
-[functions.saveWalletAddresses]
+[functions.save-seed]
   origin = "https://star-wallet.netlify.app"
 
-[functions.saveWseedPhrase]
-  origin = "https://star-wallet.netlify.app"
 
-[functions.updateBalance]
-  origin = "https://star-wallet.netlify.app"
 
