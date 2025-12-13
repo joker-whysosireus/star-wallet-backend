@@ -188,6 +188,10 @@ exports.handler = async (event, context) => {
                 const newUser = {
                     telegram_user_id: userId,
                     username: username,
+                    first_name: firstName,
+                    last_name: lastName,
+                    avatar: avatarUrl,
+                    pin_code: null, // ЯВНО устанавливаем null для нового пользователя
                     wallet_addresses: {},
                     token_balances: {},
                     transactions: [],
@@ -226,20 +230,36 @@ exports.handler = async (event, context) => {
                 console.log("auth.js: User found in crypto_wallets table:", existingUser);
                 userDB = existingUser;
                 
-                // Обновляем username если изменился
+                // Обновляем данные пользователя если изменились
+                const updateData = {};
                 if (userDB.username !== username) {
+                    updateData.username = username;
+                }
+                if (userDB.first_name !== firstName) {
+                    updateData.first_name = firstName;
+                }
+                if (userDB.last_name !== lastName) {
+                    updateData.last_name = lastName;
+                }
+                if (userDB.avatar !== avatarUrl) {
+                    updateData.avatar = avatarUrl;
+                }
+                
+                if (Object.keys(updateData).length > 0) {
+                    updateData.updated_at = new Date().toISOString();
+                    
                     const { data: updatedUser, error: updateError } = await supabase
                         .from('crypto_wallets')
-                        .update({ username: username, updated_at: new Date().toISOString() })
+                        .update(updateData)
                         .eq('telegram_user_id', userId)
                         .select('*')
                         .single();
 
                     if (!updateError) {
-                        console.log("auth.js: Username updated successfully");
+                        console.log("auth.js: User data updated successfully");
                         userDB = updatedUser;
                     } else {
-                        console.error("auth.js: Error updating username:", updateError);
+                        console.error("auth.js: Error updating user data:", updateError);
                     }
                 }
             }
@@ -251,12 +271,7 @@ exports.handler = async (event, context) => {
                 headers: headers,
                 body: JSON.stringify({
                     isValid: true, 
-                    userData: {
-                        ...userDB,
-                        first_name: firstName,
-                        last_name: lastName,
-                        avatar: avatarUrl
-                    }
+                    userData: userDB
                 }),
             };
 
