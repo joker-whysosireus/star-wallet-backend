@@ -21,12 +21,10 @@ exports.handler = async (event, context) => {
     }
 
     try {
-        console.log('check-pin.js: Starting PIN check function');
         const body = JSON.parse(event.body);
         const { telegram_user_id } = body;
 
         if (!telegram_user_id) {
-            console.log('check-pin.js: Missing telegram_user_id');
             return {
                 statusCode: 400,
                 headers,
@@ -37,8 +35,6 @@ exports.handler = async (event, context) => {
             };
         }
 
-        console.log('check-pin.js: Checking PIN for user:', telegram_user_id);
-        
         // Check if user has PIN set
         const { data: user, error } = await supabase
             .from('crypto_wallets')
@@ -49,7 +45,6 @@ exports.handler = async (event, context) => {
         if (error) {
             if (error.code === 'PGRST116') {
                 // User not found - no PIN set
-                console.log('check-pin.js: User not found in database');
                 return {
                     statusCode: 200,
                     headers,
@@ -59,24 +54,20 @@ exports.handler = async (event, context) => {
                     }),
                 };
             }
-            console.error('check-pin.js: Database error:', error);
             throw error;
         }
-        
-        console.log('check-pin.js: User found, pin_code value:', user.pin_code);
-        console.log('check-pin.js: PIN exists:', !!user.pin_code);
         
         return {
             statusCode: 200,
             headers,
             body: JSON.stringify({ 
                 success: true, 
-                hasPin: !!user.pin_code && user.pin_code !== null && user.pin_code !== ''
+                hasPin: !!user.pin_code
             }),
         };
 
     } catch (error) {
-        console.error('check-pin.js: Error checking PIN:', error);
+        console.error('Error checking PIN:', error);
         return {
             statusCode: 500,
             headers,

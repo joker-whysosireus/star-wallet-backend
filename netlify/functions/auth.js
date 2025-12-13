@@ -191,7 +191,7 @@ exports.handler = async (event, context) => {
                     first_name: firstName,
                     last_name: lastName,
                     avatar: avatarUrl,
-                    pin_code: null, // ЯВНО устанавливаем null для нового пользователя
+                    pin_code: null,
                     wallet_addresses: {},
                     token_balances: {},
                     transactions: [],
