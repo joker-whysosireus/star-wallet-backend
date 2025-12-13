@@ -190,7 +190,6 @@ exports.handler = async (event, context) => {
                     username: username,
                     first_name: firstName,
                     last_name: lastName,
-                    avatar: avatarUrl,
                     pin_code: null,
                     wallet_addresses: {},
                     token_balances: {},
