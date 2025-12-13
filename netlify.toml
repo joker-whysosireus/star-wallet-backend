@@ -10,5 +10,11 @@
 [functions.save-seed]
   origin = "https://star-wallet.netlify.app"
 
+[functions.check-pin]
+  origin = "https://star-wallet.netlify.app"
 
+[functions.set-pin]
+  origin = "https://star-wallet.netlify.app"
 
+[functions.verify-pin]
+  origin = "https://star-wallet.netlify.app"
