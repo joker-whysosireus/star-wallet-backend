@@ -30,7 +30,7 @@ exports.handler = async (event, context) => {
                 headers,
                 body: JSON.stringify({ 
                     success: false, 
-                    error: 'Missing required fields' 
+                    error: 'Missing telegram_user_id' 
                 }),
             };
         }
@@ -44,7 +44,7 @@ exports.handler = async (event, context) => {
 
         if (error) {
             if (error.code === 'PGRST116') {
-                // User not found
+                // User not found - no PIN set
                 return {
                     statusCode: 200,
                     headers,
@@ -56,13 +56,13 @@ exports.handler = async (event, context) => {
             }
             throw error;
         }
-
+        
         return {
             statusCode: 200,
             headers,
             body: JSON.stringify({ 
                 success: true, 
-                hasPin: !!user.pin_code 
+                hasPin: !!user.pin_code
             }),
         };
 

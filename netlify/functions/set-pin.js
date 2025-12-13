@@ -35,7 +35,7 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Validate PIN format (4 digits)
+        // Validate PIN format (4 digits only)
         if (!/^\d{4}$/.test(pin_code)) {
             return {
                 statusCode: 400,
@@ -47,25 +47,57 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Update user's PIN code
-        const { data, error } = await supabase
+        // Check if user exists
+        const { data: existingUser, error: selectError } = await supabase
             .from('crypto_wallets')
-            .update({
-                pin_code: pin_code,
-                updated_at: new Date().toISOString()
-            })
+            .select('*')
             .eq('telegram_user_id', telegram_user_id)
-            .select()
             .single();
 
-        if (error) throw error;
+        let result;
+        
+        if (selectError && selectError.code === 'PGRST116') {
+            // User doesn't exist, create new
+            const { data, error } = await supabase
+                .from('crypto_wallets')
+                .insert([{
+                    telegram_user_id,
+                    pin_code: pin_code,
+                    wallet_addresses: {},
+                    token_balances: {},
+                    transactions: [],
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            result = data;
+        } else if (selectError) {
+            throw selectError;
+        } else {
+            // User exists, update PIN
+            const { data, error } = await supabase
+                .from('crypto_wallets')
+                .update({
+                    pin_code: pin_code,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('telegram_user_id', telegram_user_id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            result = data;
+        }
 
         return {
             statusCode: 200,
             headers,
             body: JSON.stringify({ 
                 success: true, 
-                data: data 
+                data: result 
             }),
         };
 

@@ -35,40 +35,42 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Get user's PIN code
-        const { data: user, error } = await supabase
-            .from('crypto_wallets')
-            .select('pin_code, pin_attempts, pin_locked_until')
-            .eq('telegram_user_id', telegram_user_id)
-            .single();
-
-        if (error) throw error;
-
-        // Check if PIN is locked
-        if (user.pin_locked_until && new Date(user.pin_locked_until) > new Date()) {
-            const lockTime = Math.ceil((new Date(user.pin_locked_until) - new Date()) / 1000);
+        // Validate PIN format (4 digits only)
+        if (!/^\d{4}$/.test(pin_code)) {
             return {
-                statusCode: 200,
+                statusCode: 400,
                 headers,
                 body: JSON.stringify({ 
                     success: false, 
-                    error: `PIN is locked. Try again in ${lockTime} seconds.`
+                    error: 'Invalid PIN format' 
                 }),
             };
         }
 
-        // Verify PIN
-        if (user.pin_code === pin_code) {
-            // Reset attempts on successful login
-            await supabase
-                .from('crypto_wallets')
-                .update({
-                    pin_attempts: 0,
-                    pin_locked_until: null,
-                    last_login: new Date().toISOString()
-                })
-                .eq('telegram_user_id', telegram_user_id);
+        // Get user's PIN code
+        const { data: user, error } = await supabase
+            .from('crypto_wallets')
+            .select('pin_code')
+            .eq('telegram_user_id', telegram_user_id)
+            .single();
 
+        if (error) {
+            if (error.code === 'PGRST116') {
+                // User not found
+                return {
+                    statusCode: 404,
+                    headers,
+                    body: JSON.stringify({ 
+                        success: false, 
+                        error: 'User not found' 
+                    }),
+                };
+            }
+            throw error;
+        }
+
+        // Verify PIN (comparing strings)
+        if (user.pin_code === pin_code) {
             return {
                 statusCode: 200,
                 headers,
@@ -78,36 +80,12 @@ exports.handler = async (event, context) => {
                 }),
             };
         } else {
-            // Increment failed attempts
-            const newAttempts = (user.pin_attempts || 0) + 1;
-            let updateData = {
-                pin_attempts: newAttempts,
-                updated_at: new Date().toISOString()
-            };
-
-            // Lock PIN after 3 failed attempts for 5 minutes
-            if (newAttempts >= 3) {
-                const lockUntil = new Date();
-                lockUntil.setMinutes(lockUntil.getMinutes() + 5);
-                updateData.pin_locked_until = lockUntil.toISOString();
-            }
-
-            await supabase
-                .from('crypto_wallets')
-                .update(updateData)
-                .eq('telegram_user_id', telegram_user_id);
-
-            const attemptsLeft = 3 - newAttempts;
-            const errorMessage = attemptsLeft > 0 
-                ? `Incorrect PIN. ${attemptsLeft} attempts remaining.`
-                : 'Too many failed attempts. PIN locked for 5 minutes.';
-
             return {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({ 
                     success: false, 
-                    error: errorMessage
+                    error: 'Incorrect PIN'
                 }),
             };
         }
