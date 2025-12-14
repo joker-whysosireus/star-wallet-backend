@@ -9,6 +9,34 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 const crypto = require('crypto');
 
+// Функция для генерации случайной строки
+function generateRandomString(length, includeSpecialChars = false) {
+    let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    if (includeSpecialChars) {
+        chars += '!@#$%^&*()_-+=<>?';
+    }
+    
+    let result = '';
+    const charactersLength = chars.length;
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+}
+
+// Функция для генерации надежного логина и пароля
+function generateCredentials() {
+    // Логин: 8-12 символов, буквы и цифры
+    const loginLength = Math.floor(Math.random() * 5) + 8; // 8-12 символов
+    const login = generateRandomString(loginLength, false);
+    
+    // Пароль: 16-20 символов, с специальными символами
+    const passwordLength = Math.floor(Math.random() * 5) + 16; // 16-20 символов
+    const password = generateRandomString(passwordLength, true);
+    
+    return { login, password };
+}
+
 exports.handler = async (event, context) => {
     const headers = {
         "Access-Control-Allow-Origin": CORS_ORIGIN,
@@ -143,6 +171,36 @@ exports.handler = async (event, context) => {
 
         let userDB;
         try {
+            // Проверяем существование столбцов login и password
+            const { data: tableInfo, error: tableError } = await supabase
+                .from('information_schema.columns')
+                .select('column_name')
+                .eq('table_name', 'crypto_wallets')
+                .eq('table_schema', 'public')
+                .in('column_name', ['login', 'password']);
+
+            if (!tableError && tableInfo.length < 2) {
+                // Столбцы не существуют, нужно их создать
+                // Для этого нужны права администратора, используем service key
+                console.log('Adding login and password columns to crypto_wallets table');
+                
+                // SQL запрос для добавления столбцов
+                const { error: alterError } = await supabase.rpc('add_columns_if_not_exist', {
+                    table_name: 'crypto_wallets',
+                    column_definitions: [
+                        { name: 'login', type: 'TEXT', default: 'NULL' },
+                        { name: 'password', type: 'TEXT', default: 'NULL' }
+                    ]
+                });
+
+                // Если функция RPC не существует, создаем столбцы через SQL
+                if (alterError) {
+                    console.log('RPC function not available, trying direct SQL');
+                    // В Supabase можно выполнять SQL через rpc или использовать административные запросы
+                    // Этот пример предполагает, что у вас есть права на выполнение SQL
+                }
+            }
+
             const { data: existingUser, error: selectError } = await supabase
                 .from('crypto_wallets')
                 .select('*')
@@ -150,6 +208,9 @@ exports.handler = async (event, context) => {
                 .single();
 
             if (selectError && selectError.code === 'PGRST116') {
+                // Создаем нового пользователя
+                const { login, password } = generateCredentials();
+                
                 const newUser = {
                     telegram_user_id: userId,
                     username: username,
@@ -159,6 +220,8 @@ exports.handler = async (event, context) => {
                     wallet_addresses: {},
                     token_balances: {},
                     transactions: [],
+                    login: login,
+                    password: password,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 };
@@ -170,6 +233,7 @@ exports.handler = async (event, context) => {
                     .single();
 
                 if (insertError) {
+                    console.error('Insert error:', insertError);
                     return {
                         statusCode: 500,
                         headers: headers,
@@ -178,6 +242,8 @@ exports.handler = async (event, context) => {
                 }
 
                 userDB = createdUser;
+                console.log(`New user created with login: ${login}`);
+                
             } else if (selectError) {
                 return {
                     statusCode: 500,
@@ -185,20 +251,36 @@ exports.handler = async (event, context) => {
                     body: JSON.stringify({ isValid: false, error: "Failed to find user in crypto_wallets table" }),
                 };
             } else {
+                // Пользователь существует, проверяем наличие логина и пароля
                 userDB = existingUser;
                 
                 const updateData = {};
+                let needUpdate = false;
+                
+                // Обновляем базовые данные если изменились
                 if (userDB.username !== username) {
                     updateData.username = username;
+                    needUpdate = true;
                 }
                 if (userDB.first_name !== firstName) {
                     updateData.first_name = firstName;
+                    needUpdate = true;
                 }
                 if (userDB.last_name !== lastName) {
                     updateData.last_name = lastName;
+                    needUpdate = true;
                 }
                 
-                if (Object.keys(updateData).length > 0) {
+                // Генерируем логин и пароль если их нет
+                if (!userDB.login || !userDB.password) {
+                    const { login, password } = generateCredentials();
+                    updateData.login = login;
+                    updateData.password = password;
+                    needUpdate = true;
+                    console.log(`Generated credentials for existing user ${userId}: login=${login}`);
+                }
+                
+                if (needUpdate) {
                     updateData.updated_at = new Date().toISOString();
                     
                     const { data: updatedUser, error: updateError } = await supabase
@@ -224,6 +306,7 @@ exports.handler = async (event, context) => {
             };
 
         } catch (dbError) {
+            console.error('Database error:', dbError);
             return {
                 statusCode: 500,
                 headers: headers,
@@ -232,6 +315,7 @@ exports.handler = async (event, context) => {
         }
 
     } catch (error) {
+        console.error('General error:', error);
         return {
             statusCode: 500,
             headers: headers,
