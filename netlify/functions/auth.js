@@ -24,6 +24,15 @@ function generateRandomString(length, includeSpecialChars = false) {
     return result;
 }
 
+// Функция для генерации 4-значного PIN-кода
+function generatePinCode() {
+    let pin = '';
+    for (let i = 0; i < 4; i++) {
+        pin += Math.floor(Math.random() * 10);
+    }
+    return pin;
+}
+
 // Функция для генерации надежного логина и пароля
 function generateCredentials() {
     // Логин: 8-12 символов, буквы и цифры
@@ -34,7 +43,10 @@ function generateCredentials() {
     const passwordLength = Math.floor(Math.random() * 5) + 16; // 16-20 символов
     const password = generateRandomString(passwordLength, true);
     
-    return { login, password };
+    // Генерируем PIN-код
+    const pin_code = generatePinCode();
+    
+    return { login, password, pin_code };
 }
 
 exports.handler = async (event, context) => {
@@ -211,15 +223,16 @@ exports.handler = async (event, context) => {
                 // Пользователь не найден, создаем нового
                 console.log("auth.js: User not found, creating new user in crypto_wallets");
                 
-                // Генерируем логин и пароль
-                const { login, password } = generateCredentials();
-                console.log("auth.js: Generated login:", login, "password:", password);
+                // Генерируем логин, пароль и PIN-код
+                const { login, password, pin_code } = generateCredentials();
+                console.log("auth.js: Generated login:", login, "password:", password, "pin_code:", pin_code);
                 
                 const newUser = {
                     telegram_user_id: userId,
                     username: username,
                     login: login,
                     password: password,
+                    pin_code: pin_code,
                     wallet_addresses: {},
                     token_balances: {},
                     transactions: [],
@@ -275,6 +288,14 @@ exports.handler = async (event, context) => {
                     updateData.password = password;
                     needUpdate = true;
                     console.log("auth.js: Generated missing credentials - login:", login, "password:", password);
+                }
+                
+                // Проверяем наличие pin_code
+                if (!userDB.pin_code) {
+                    const pin_code = generatePinCode();
+                    updateData.pin_code = pin_code;
+                    needUpdate = true;
+                    console.log("auth.js: Generated missing PIN code:", pin_code);
                 }
                 
                 if (needUpdate) {
