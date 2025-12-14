@@ -38,6 +38,8 @@ function generateCredentials() {
 }
 
 exports.handler = async (event, context) => {
+    console.log("auth.js: Function started");
+
     const headers = {
         "Access-Control-Allow-Origin": CORS_ORIGIN,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -47,6 +49,7 @@ exports.handler = async (event, context) => {
     };
 
     if (event.httpMethod === "OPTIONS") {
+        console.log("auth.js: Handling OPTIONS request");
         return {
             statusCode: 200,
             headers: headers,
@@ -55,11 +58,15 @@ exports.handler = async (event, context) => {
     }
 
     try {
+        console.log("auth.js: event.body:", event.body);
+
         let requestBody;
         if (event.body) {
             try {
                 requestBody = JSON.parse(event.body);
+                console.log("auth.js: Request body:", requestBody);
             } catch (parseError) {
+                console.error("auth.js: Error parsing JSON:", parseError);
                 return {
                     statusCode: 400,
                     headers: headers,
@@ -67,6 +74,7 @@ exports.handler = async (event, context) => {
                 };
             }
         } else {
+            console.warn("auth.js: Request body is empty");
             return {
                 statusCode: 400,
                 headers: headers,
@@ -83,12 +91,14 @@ exports.handler = async (event, context) => {
         if (startParam) {
             try {
                 referralCode = startParam.replace('ref_', '');
+                console.log("auth.js: referralCode from start_param: " + referralCode);
             } catch (error) {
-                // ignore error
+                console.error("auth.js: Error processing start_param: " + error);
             }
         }
 
         if (!initData) {
+            console.warn("auth.js: initData is missing in request body");
             return {
                 statusCode: 400,
                 headers: headers,
@@ -96,12 +106,15 @@ exports.handler = async (event, context) => {
             };
         }
 
+        console.log("auth.js: initData:", initData);
+
         const searchParams = new URLSearchParams(initData);
         const userStr = searchParams.get('user');
         const authDate = searchParams.get('auth_date');
         const hash = searchParams.get('hash');
 
         if (!userStr || !authDate || !hash) {
+            console.warn("auth.js: Missing user, auth_date, or hash in initData");
             return {
                 statusCode: 400,
                 headers: headers,
@@ -112,7 +125,9 @@ exports.handler = async (event, context) => {
         let user;
         try {
             user = JSON.parse(userStr);
+            console.log("auth.js: Parsed user data:", user);
         } catch (error) {
+            console.error("auth.js: Error parsing user JSON:", error);
             return {
                 statusCode: 400,
                 headers: headers,
@@ -124,8 +139,12 @@ exports.handler = async (event, context) => {
         const firstName = user.first_name;
         const lastName = user.last_name || "";
         const username = user.username;
+        const avatarUrl = user.photo_url || null;
+
+        console.log("auth.js: Extracted user data - userId:", userId, "firstName:", firstName, "lastName:", lastName, "username:", username, "avatarUrl:", avatarUrl);
 
         if (!BOT_TOKEN || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+            console.error("auth.js: Environment variables not defined");
             return {
                 statusCode: 500,
                 headers: headers,
@@ -133,6 +152,7 @@ exports.handler = async (event, context) => {
             };
         }
 
+        // Верификация хэша с использованием Node.js crypto
         const params = new URLSearchParams(initData);
         const entries = Array.from(params.entries());
         entries.sort((a, b) => a[0].localeCompare(b[0]));
@@ -145,12 +165,18 @@ exports.handler = async (event, context) => {
         }
         dataCheckString = dataCheckString.trim();
 
+        // Создаем secretKey как HMAC SHA256 от BOT_TOKEN с ключом "WebAppData"
         const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+        
+        // Вычисляем HMAC SHA256 от dataCheckString
         const calculatedHash = crypto.createHmac('sha256', secretKey)
             .update(dataCheckString)
             .digest('hex');
 
+        console.log("auth.js: Calculated hash:", calculatedHash, "Provided hash:", hash);
+
         if (calculatedHash !== hash) {
+            console.warn("auth.js: Hash mismatch - Calculated hash:", calculatedHash, "Provided hash:", hash);
             return {
                 statusCode: 200,
                 headers: headers,
@@ -162,6 +188,7 @@ exports.handler = async (event, context) => {
         const now = Math.floor(Date.now() / 1000);
 
         if (now - date > 86400) {
+            console.warn("auth.js: auth_date is too old");
             return {
                 statusCode: 200,
                 headers: headers,
@@ -169,38 +196,11 @@ exports.handler = async (event, context) => {
             };
         }
 
+        // Проверяем существование пользователя в таблице crypto_wallets
         let userDB;
         try {
-            // Проверяем существование столбцов login и password
-            const { data: tableInfo, error: tableError } = await supabase
-                .from('information_schema.columns')
-                .select('column_name')
-                .eq('table_name', 'crypto_wallets')
-                .eq('table_schema', 'public')
-                .in('column_name', ['login', 'password']);
-
-            if (!tableError && tableInfo.length < 2) {
-                // Столбцы не существуют, нужно их создать
-                // Для этого нужны права администратора, используем service key
-                console.log('Adding login and password columns to crypto_wallets table');
-                
-                // SQL запрос для добавления столбцов
-                const { error: alterError } = await supabase.rpc('add_columns_if_not_exist', {
-                    table_name: 'crypto_wallets',
-                    column_definitions: [
-                        { name: 'login', type: 'TEXT', default: 'NULL' },
-                        { name: 'password', type: 'TEXT', default: 'NULL' }
-                    ]
-                });
-
-                // Если функция RPC не существует, создаем столбцы через SQL
-                if (alterError) {
-                    console.log('RPC function not available, trying direct SQL');
-                    // В Supabase можно выполнять SQL через rpc или использовать административные запросы
-                    // Этот пример предполагает, что у вас есть права на выполнение SQL
-                }
-            }
-
+            console.log("auth.js: Checking user in crypto_wallets table, telegram_user_id:", userId);
+            
             const { data: existingUser, error: selectError } = await supabase
                 .from('crypto_wallets')
                 .select('*')
@@ -208,24 +208,27 @@ exports.handler = async (event, context) => {
                 .single();
 
             if (selectError && selectError.code === 'PGRST116') {
-                // Создаем нового пользователя
+                // Пользователь не найден, создаем нового
+                console.log("auth.js: User not found, creating new user in crypto_wallets");
+                
+                // Генерируем логин и пароль
                 const { login, password } = generateCredentials();
+                console.log("auth.js: Generated login:", login, "password:", password);
                 
                 const newUser = {
                     telegram_user_id: userId,
                     username: username,
-                    first_name: firstName,
-                    last_name: lastName,
-                    pin_code: null,
+                    login: login,
+                    password: password,
                     wallet_addresses: {},
                     token_balances: {},
                     transactions: [],
-                    login: login,
-                    password: password,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 };
 
+                console.log("auth.js: Creating user in crypto_wallets table:", newUser);
+                
                 const { data: createdUser, error: insertError } = await supabase
                     .from('crypto_wallets')
                     .insert([newUser])
@@ -233,7 +236,7 @@ exports.handler = async (event, context) => {
                     .single();
 
                 if (insertError) {
-                    console.error('Insert error:', insertError);
+                    console.error("auth.js: Error creating user in crypto_wallets table:", insertError);
                     return {
                         statusCode: 500,
                         headers: headers,
@@ -241,43 +244,37 @@ exports.handler = async (event, context) => {
                     };
                 }
 
+                console.log("auth.js: User successfully created in crypto_wallets table:", createdUser);
                 userDB = createdUser;
-                console.log(`New user created with login: ${login}`);
                 
             } else if (selectError) {
+                console.error("auth.js: Error finding user in crypto_wallets:", selectError);
                 return {
                     statusCode: 500,
                     headers: headers,
                     body: JSON.stringify({ isValid: false, error: "Failed to find user in crypto_wallets table" }),
                 };
             } else {
-                // Пользователь существует, проверяем наличие логина и пароля
+                console.log("auth.js: User found in crypto_wallets table:", existingUser);
                 userDB = existingUser;
                 
+                // Обновляем данные если нужно
                 const updateData = {};
                 let needUpdate = false;
                 
-                // Обновляем базовые данные если изменились
+                // Обновляем username если изменился
                 if (userDB.username !== username) {
                     updateData.username = username;
                     needUpdate = true;
                 }
-                if (userDB.first_name !== firstName) {
-                    updateData.first_name = firstName;
-                    needUpdate = true;
-                }
-                if (userDB.last_name !== lastName) {
-                    updateData.last_name = lastName;
-                    needUpdate = true;
-                }
                 
-                // Генерируем логин и пароль если их нет
+                // Проверяем наличие логина и пароля
                 if (!userDB.login || !userDB.password) {
                     const { login, password } = generateCredentials();
                     updateData.login = login;
                     updateData.password = password;
                     needUpdate = true;
-                    console.log(`Generated credentials for existing user ${userId}: login=${login}`);
+                    console.log("auth.js: Generated missing credentials - login:", login, "password:", password);
                 }
                 
                 if (needUpdate) {
@@ -291,31 +288,41 @@ exports.handler = async (event, context) => {
                         .single();
 
                     if (!updateError) {
+                        console.log("auth.js: User data updated successfully");
                         userDB = updatedUser;
+                    } else {
+                        console.error("auth.js: Error updating user data:", updateError);
                     }
                 }
             }
+
+            console.log("auth.js: Returning user data from crypto_wallets:", userDB);
 
             return {
                 statusCode: 200,
                 headers: headers,
                 body: JSON.stringify({
                     isValid: true, 
-                    userData: userDB
+                    userData: {
+                        ...userDB,
+                        first_name: firstName,
+                        last_name: lastName,
+                        avatar: avatarUrl
+                    }
                 }),
             };
 
         } catch (dbError) {
-            console.error('Database error:', dbError);
+            console.error("auth.js: Database error:", dbError);
             return {
                 statusCode: 500,
                 headers: headers,
-                body: JSON.stringify({ isValid: false, error: "Database error" }),
+                body: JSON.stringify({ isValid: false, error: "Database error: " + dbError.message }),
             };
         }
 
     } catch (error) {
-        console.error('General error:', error);
+        console.error("auth.js: Netlify Function error:", error);
         return {
             statusCode: 500,
             headers: headers,
