@@ -15,6 +15,3 @@
 
 [functions.set-pin]
   origin = "https://star-wallet.netlify.app"
-
-[functions.verify-pin]
-  origin = "https://star-wallet.netlify.app"

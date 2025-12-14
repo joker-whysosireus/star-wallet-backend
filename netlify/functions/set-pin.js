@@ -1,115 +1,109 @@
+import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 exports.handler = async (event, context) => {
+    console.log("set-pin.js: Function started");
+
     const headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        "Access-Control-Allow-Origin": CORS_ORIGIN,
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Max-Age": "86400",
     };
 
-    if (event.httpMethod === 'OPTIONS') {
+    if (event.httpMethod === "OPTIONS") {
+        console.log("set-pin.js: Handling OPTIONS request");
         return {
             statusCode: 200,
-            headers,
-            body: '',
+            headers: headers,
+            body: "",
         };
     }
 
     try {
-        const body = JSON.parse(event.body);
-        const { telegram_user_id, pin_code } = body;
-
-        if (!telegram_user_id || !pin_code) {
+        let requestBody;
+        if (event.body) {
+            requestBody = JSON.parse(event.body);
+        } else {
             return {
                 statusCode: 400,
-                headers,
-                body: JSON.stringify({ 
-                    success: false, 
-                    error: 'Missing required fields' 
-                }),
+                headers: headers,
+                body: JSON.stringify({ success: false, error: "Request body is empty" }),
             };
         }
 
-        // Validate PIN format (4 digits only)
-        if (!/^\d{4}$/.test(pin_code)) {
+        const userId = requestBody.userId;
+        const pinCode = requestBody.pinCode;
+
+        if (!userId) {
             return {
                 statusCode: 400,
-                headers,
-                body: JSON.stringify({ 
-                    success: false, 
-                    error: 'PIN must be exactly 4 digits' 
-                }),
+                headers: headers,
+                body: JSON.stringify({ success: false, error: "User ID is required" }),
             };
         }
 
-        // Check if user exists
-        const { data: existingUser, error: selectError } = await supabase
+        if (!pinCode) {
+            return {
+                statusCode: 400,
+                headers: headers,
+                body: JSON.stringify({ success: false, error: "PIN code is required" }),
+            };
+        }
+
+        // Проверяем, что PIN состоит из 4 цифр
+        if (!/^\d{4}$/.test(pinCode)) {
+            return {
+                statusCode: 400,
+                headers: headers,
+                body: JSON.stringify({ success: false, error: "PIN must be exactly 4 digits" }),
+            };
+        }
+
+        // Устанавливаем PIN-код
+        const { data, error } = await supabase
             .from('crypto_wallets')
+            .update({ 
+                pin_code: pinCode,
+                updated_at: new Date().toISOString()
+            })
+            .eq('telegram_user_id', userId)
             .select('*')
-            .eq('telegram_user_id', telegram_user_id)
             .single();
 
-        let result;
-        
-        if (selectError && selectError.code === 'PGRST116') {
-            // User doesn't exist, create new
-            const { data, error } = await supabase
-                .from('crypto_wallets')
-                .insert([{
-                    telegram_user_id,
-                    pin_code: pin_code,
-                    wallet_addresses: {},
-                    token_balances: {},
-                    transactions: [],
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                }])
-                .select()
-                .single();
-
-            if (error) throw error;
-            result = data;
-        } else if (selectError) {
-            throw selectError;
-        } else {
-            // User exists, update PIN
-            const { data, error } = await supabase
-                .from('crypto_wallets')
-                .update({
-                    pin_code: pin_code,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('telegram_user_id', telegram_user_id)
-                .select()
-                .single();
-
-            if (error) throw error;
-            result = data;
+        if (error) {
+            console.error("set-pin.js: Error setting PIN code:", error);
+            return {
+                statusCode: 500,
+                headers: headers,
+                body: JSON.stringify({ success: false, error: "Failed to set PIN code" }),
+            };
         }
+
+        console.log("set-pin.js: PIN code set successfully for user:", userId);
 
         return {
             statusCode: 200,
-            headers,
+            headers: headers,
             body: JSON.stringify({ 
                 success: true, 
-                data: result 
+                message: "PIN code set successfully"
             }),
         };
 
     } catch (error) {
-        console.error('Error setting PIN:', error);
+        console.error("set-pin.js: Function error:", error);
         return {
             statusCode: 500,
-            headers,
-            body: JSON.stringify({ 
-                success: false, 
-                error: error.message 
-            }),
+            headers: headers,
+            body: JSON.stringify({ success: false, error: error.message }),
         };
     }
 };
