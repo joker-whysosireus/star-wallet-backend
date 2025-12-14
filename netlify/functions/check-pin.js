@@ -15,11 +15,9 @@ exports.handler = async (event, context) => {
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Max-Age": "86400",
     };
 
     if (event.httpMethod === "OPTIONS") {
-        console.log("check-pin.js: Handling OPTIONS request");
         return {
             statusCode: 200,
             headers: headers,
@@ -68,14 +66,14 @@ exports.handler = async (event, context) => {
 
         // Если PIN-код не передан, проверяем нужен ли он
         if (!pinCode) {
-            const needsPin = !userData.pin_code || userData.pin_code.trim() === '';
+            const hasPin = userData.pin_code && userData.pin_code.trim() !== '';
             return {
                 statusCode: 200,
                 headers: headers,
                 body: JSON.stringify({ 
                     success: true, 
-                    needsPin: needsPin,
-                    hasPin: !!userData.pin_code && userData.pin_code.trim() !== ''
+                    needsPin: !hasPin,
+                    hasPin: hasPin
                 }),
             };
         }

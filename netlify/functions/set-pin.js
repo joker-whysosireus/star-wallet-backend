@@ -15,11 +15,9 @@ exports.handler = async (event, context) => {
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Credentials": "true",
-        "Access-Control-Max-Age": "86400",
     };
 
     if (event.httpMethod === "OPTIONS") {
-        console.log("set-pin.js: Handling OPTIONS request");
         return {
             statusCode: 200,
             headers: headers,
@@ -68,15 +66,13 @@ exports.handler = async (event, context) => {
         }
 
         // Устанавливаем PIN-код
-        const { data, error } = await supabase
+        const { error } = await supabase
             .from('crypto_wallets')
             .update({ 
                 pin_code: pinCode,
                 updated_at: new Date().toISOString()
             })
-            .eq('telegram_user_id', userId)
-            .select('*')
-            .single();
+            .eq('telegram_user_id', userId);
 
         if (error) {
             console.error("set-pin.js: Error setting PIN code:", error);
