@@ -24,24 +24,25 @@ exports.handler = async (event, context) => {
         const body = JSON.parse(event.body);
         const { telegram_user_id, wallet_addresses } = body;
 
-        if (!telegram_user_id || !wallet_addresses) {
+        if (!telegram_user_id) {
             return {
                 statusCode: 400,
                 headers,
                 body: JSON.stringify({ 
                     success: false, 
-                    error: 'Missing required fields' 
+                    error: 'Missing telegram_user_id' 
                 }),
             };
         }
 
-        // Update wallet addresses
+        const updateData = {
+            wallet_addresses: wallet_addresses || {},
+            updated_at: new Date().toISOString()
+        };
+
         const { data, error } = await supabase
             .from('crypto_wallets')
-            .update({
-                wallet_addresses: wallet_addresses,
-                updated_at: new Date().toISOString()
-            })
+            .update(updateData)
             .eq('telegram_user_id', telegram_user_id)
             .select()
             .single();
