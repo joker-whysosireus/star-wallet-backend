@@ -22,7 +22,10 @@ exports.handler = async (event, context) => {
 
     try {
         const body = JSON.parse(event.body);
-        const { telegram_user_id } = body;
+        const { 
+            telegram_user_id, 
+            testnet_wallets 
+        } = body;
 
         if (!telegram_user_id) {
             return {
@@ -35,27 +38,39 @@ exports.handler = async (event, context) => {
             };
         }
 
-        // Получаем данные пользователя
-        const { data: user, error } = await supabase
+        console.log('Updating testnet wallets for:', telegram_user_id);
+        console.log('Testnet wallets data:', testnet_wallets);
+
+        const updateData = {
+            testnet_wallets: testnet_wallets || {},
+            updated_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase
             .from('crypto_wallets')
-            .select('testnet_wallets, seed_phrases')
+            .update(updateData)
             .eq('telegram_user_id', telegram_user_id)
+            .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase update error:', error);
+            throw error;
+        }
+
+        console.log('Successfully updated testnet wallets:', data);
 
         return {
             statusCode: 200,
             headers,
             body: JSON.stringify({ 
                 success: true, 
-                testnet_wallets: user.testnet_wallets || {},
-                has_seed: !!user.seed_phrases
+                data: data 
             }),
         };
 
     } catch (error) {
-        console.error('Error getting testnet wallets:', error);
+        console.error('Error updating testnet wallets:', error);
         return {
             statusCode: 500,
             headers,
