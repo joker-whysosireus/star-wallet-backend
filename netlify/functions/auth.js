@@ -181,6 +181,7 @@ exports.handler = async (event, context) => {
                     login: login,
                     password: password,
                     wallet_addresses: {},
+                    testnet_wallets: {},
                     token_balances: {},
                     transactions: [],
                     created_at: new Date().toISOString(),
