@@ -22,11 +22,7 @@ exports.handler = async (event, context) => {
 
     try {
         const body = JSON.parse(event.body);
-        const { 
-            telegram_user_id, 
-            wallet_addresses, 
-            testnet_wallets 
-        } = body;
+        const { telegram_user_id } = body;
 
         if (!telegram_user_id) {
             return {
@@ -39,17 +35,11 @@ exports.handler = async (event, context) => {
             };
         }
 
-        const updateData = {
-            wallet_addresses: wallet_addresses || {},
-            testnet_wallets: testnet_wallets || {},
-            updated_at: new Date().toISOString()
-        };
-
-        const { data, error } = await supabase
+        // Получаем данные пользователя
+        const { data: user, error } = await supabase
             .from('crypto_wallets')
-            .update(updateData)
+            .select('testnet_wallets, seed_phrases')
             .eq('telegram_user_id', telegram_user_id)
-            .select()
             .single();
 
         if (error) throw error;
@@ -59,12 +49,13 @@ exports.handler = async (event, context) => {
             headers,
             body: JSON.stringify({ 
                 success: true, 
-                data: data 
+                testnet_wallets: user.testnet_wallets || {},
+                has_seed: !!user.seed_phrases
             }),
         };
 
     } catch (error) {
-        console.error('Error saving addresses:', error);
+        console.error('Error getting testnet wallets:', error);
         return {
             statusCode: 500,
             headers,

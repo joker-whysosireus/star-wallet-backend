@@ -14,4 +14,7 @@
   origin = "https://star-wallet.netlify.app"
 
 [functions.save-pin]
-  origin = "https://star-wallet.netlify.app"    
+  origin = "https://star-wallet.netlify.app"
+
+[functions.get-testnet-wallets]
+  origin = "https://star-wallet.netlify.app"         
