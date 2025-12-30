@@ -18,3 +18,12 @@
 
 [functions.get-testnet-wallets]
   origin = "https://star-wallet.netlify.app"         
+
+[functions.get-tron-balance]
+  origin = "https://star-wallet.netlify.app"    
+
+[functions.get-ltc-balance]
+  origin = "https://star-wallet.netlify.app"
+
+[functions.get-doge-balance]
+  origin = "https://star-wallet.netlify.app"    
