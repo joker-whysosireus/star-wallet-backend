@@ -16,14 +16,8 @@
 [functions.save-pin]
   origin = "https://star-wallet.netlify.app"
 
-[functions.get-testnet-wallets]
-  origin = "https://star-wallet.netlify.app"         
-
-[functions.get-tron-balance]
-  origin = "https://star-wallet.netlify.app"    
-
-[functions.get-ltc-balance]
+[functions.get-transactions]
   origin = "https://star-wallet.netlify.app"
 
-[functions.get-doge-balance]
-  origin = "https://star-wallet.netlify.app"    
+[functions.save-transaction]
+  origin = "https://star-wallet.netlify.app"  
